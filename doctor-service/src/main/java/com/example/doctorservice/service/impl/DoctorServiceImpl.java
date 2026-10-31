@@ -78,6 +78,20 @@ public class DoctorServiceImpl implements DoctorService {
         doctorRepository.delete(doctor);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<DoctorResponseDTO> searchDoctors(String name) {
+        List<Doctor> doctors;
+        if (name == null || name.trim().isEmpty()) {
+            doctors = doctorRepository.findAll();
+        } else {
+            doctors = doctorRepository.findByNameContainingIgnoreCase(name.trim());
+        }
+        return doctors.stream()
+                .map(this::mapToSummaryResponse)
+                .collect(Collectors.toList());
+    }
+
     private DoctorResponseDTO mapToSummaryResponse(Doctor doctor) {
         return DoctorResponseDTO.builder()
                 .id(doctor.getId())

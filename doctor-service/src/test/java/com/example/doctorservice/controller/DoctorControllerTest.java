@@ -87,4 +87,28 @@ class DoctorControllerTest {
                 .andExpect(jsonPath("$.name").value("BS. Nguyen Van A"))
                 .andExpect(jsonPath("$.specialization").value("Noi khoa"));
     }
+
+    @Test
+    void testSearchDoctor_RateLimiterTriggersOnSixthRequest() throws Exception {
+        DoctorResponseDTO doctor = DoctorResponseDTO.builder()
+                .id(1L)
+                .name("BS. Huong")
+                .specialization("Noi khoa")
+                .build();
+
+        when(doctorService.searchDoctors("huong")).thenReturn(List.of(doctor));
+
+        // First 5 requests should succeed
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(get("/api/v1/doctors/search").param("name", "huong"))
+                    .andExpect(status().isOk());
+        }
+
+        // 6th request should be blocked by RateLimiter and return HTTP 429
+        mockMvc.perform(get("/api/v1/doctors/search").param("name", "huong"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.message").value("Error"))
+                .andExpect(jsonPath("$.data").value("Bạn đã gửi quá 5 request mỗi 10 giây"));
+    }
 }

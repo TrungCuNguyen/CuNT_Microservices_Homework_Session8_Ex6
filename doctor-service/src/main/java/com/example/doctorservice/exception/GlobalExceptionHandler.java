@@ -1,5 +1,8 @@
 package com.example.doctorservice.exception;
 
+import com.example.doctorservice.constant.DoctorConstant;
+import com.example.doctorservice.dto.response.RateLimitResponseDTO;
+import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -12,6 +15,16 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(RequestNotPermitted.class)
+    public ResponseEntity<RateLimitResponseDTO> handleRequestNotPermitted(RequestNotPermitted ex) {
+        RateLimitResponseDTO response = RateLimitResponseDTO.builder()
+                .data(DoctorConstant.RATE_LIMIT_EXCEEDED)
+                .message("Error")
+                .status(HttpStatus.TOO_MANY_REQUESTS.value())
+                .build();
+        return new ResponseEntity<>(response, HttpStatus.TOO_MANY_REQUESTS);
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponseError> handleResourceNotFoundException(ResourceNotFoundException ex) {
