@@ -23,4 +23,8 @@ public interface AppointmentService {
     Object getDoctor(Long doctorId);
 
     ApiResponseError getDoctorFallback(Exception e);
+
+    Object getPatient(Long patientId);
+
+    void validatePatientExists(Long patientId);
 }

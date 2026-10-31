@@ -151,13 +151,21 @@ class AppointmentServiceImplTest {
         when(restTemplate.getForEntity(eq("http://patient-service/api/v1/patients/{id}"), eq(Object.class), eq(1L)))
                 .thenThrow(new ResourceAccessException("Connect to http://patient-service/api/v1/patients/1 failed: Connection refused"));
 
-        ServiceUnavailableException exception = assertThrows(
-                ServiceUnavailableException.class,
+        assertThrows(
+                ResourceAccessException.class,
                 () -> appointmentService.createAppointment(requestDTO)
         );
 
-        assertEquals("Hệ thống quản lý bệnh nhân hiện không khả dụng. Vui lòng đặt lịch sau!", exception.getMessage());
         verify(appointmentRepository, never()).save(any(Appointment.class));
+    }
+
+    @Test
+    void testPatientFallback() {
+        ServiceUnavailableException exception = assertThrows(
+                ServiceUnavailableException.class,
+                () -> appointmentService.patientFallback(1L, new ResourceAccessException("Connection refused"))
+        );
+        assertEquals(AppointmentConstant.PATIENT_SERVICE_UNAVAILABLE, exception.getMessage());
     }
 
     @Test

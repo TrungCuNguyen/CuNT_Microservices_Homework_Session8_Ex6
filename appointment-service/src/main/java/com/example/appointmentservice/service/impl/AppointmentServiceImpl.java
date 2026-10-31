@@ -11,14 +11,18 @@ import com.example.appointmentservice.exception.ServiceUnavailableException;
 import com.example.appointmentservice.repository.AppointmentRepository;
 import com.example.appointmentservice.service.AppointmentService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -34,6 +38,10 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final RestTemplate restTemplate;
 
+    @Autowired
+    @Lazy
+    private AppointmentService self;
+
     private static final String PATIENT_SERVICE_URL = "http://patient-service/api/v1/patients/{id}";
     private static final String DOCTOR_SERVICE_URL = "http://doctor-service/api/v1/doctors/{id}";
     private static final Set<String> VALID_STATUSES = Set.of("PENDING", "CONFIRMED", "CANCELLED");
@@ -42,7 +50,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     @Transactional
     public AppointmentResponseDTO createAppointment(AppointmentRequestDTO requestDTO) {
         if (requestDTO.getPatientId() != null) {
-            validatePatientExists(requestDTO.getPatientId());
+            getSelf().validatePatientExists(requestDTO.getPatientId());
         }
         if (requestDTO.getDoctorId() != null) {
             validateDoctorExists(requestDTO.getDoctorId());
@@ -63,6 +71,10 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
         return mapToResponse(savedAppointment);
+    }
+
+    private AppointmentService getSelf() {
+        return self != null ? self : this;
     }
 
     @Override
@@ -88,6 +100,52 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .build();
     }
 
+    @Override
+    @Retry(name = "patientRetry", fallbackMethod = "patientFallback")
+    public Object getPatient(Long patientId) {
+        log.info("Gọi Patient-Service với patientId: {}", patientId);
+        ResponseEntity<Object> response = restTemplate.getForEntity(PATIENT_SERVICE_URL, Object.class, patientId);
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
+        }
+        return response.getBody();
+    }
+
+    @Override
+    @Retry(name = "patientRetry", fallbackMethod = "patientFallback")
+    public void validatePatientExists(Long patientId) {
+        try {
+            log.info("Đang kiểm tra thông tin bệnh nhân ID: {}", patientId);
+            ResponseEntity<Object> response = restTemplate.getForEntity(PATIENT_SERVICE_URL, Object.class, patientId);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
+            }
+        } catch (HttpClientErrorException.NotFound ex) {
+            throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
+        } catch (HttpStatusCodeException ex) {
+            if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
+            }
+            log.error("Patient-service gặp sự cố HTTP {}: {}", ex.getStatusCode(), ex.getMessage());
+            throw new ServiceUnavailableException(AppointmentConstant.PATIENT_SERVICE_UNAVAILABLE);
+        } catch (ResourceAccessException ex) {
+            log.warn("Mất kết nối tới Patient-Service (ResourceAccessException), đang thử lại...: {}", ex.getMessage());
+            throw ex;
+        } catch (ResourceNotFoundException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("Lỗi không xác định khi gọi patient-service: {}", ex.getMessage());
+            throw new ServiceUnavailableException(AppointmentConstant.PATIENT_SERVICE_UNAVAILABLE);
+        }
+    }
+
+    public Object patientFallback(Long patientId, Exception e) {
+        log.error("Patient-Service retry thất bại sau 3 lần thử với patientId {}: {}", patientId, e.getMessage());
+        if (e instanceof ResourceNotFoundException) {
+            throw (ResourceNotFoundException) e;
+        }
+        throw new ServiceUnavailableException(AppointmentConstant.PATIENT_SERVICE_UNAVAILABLE);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -112,7 +170,7 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .orElseThrow(() -> new ResourceNotFoundException(String.format(AppointmentConstant.APPOINTMENT_NOT_FOUND, id)));
 
         if (requestDTO.getPatientId() != null && !requestDTO.getPatientId().equals(appointment.getPatientId())) {
-            validatePatientExists(requestDTO.getPatientId());
+            getSelf().validatePatientExists(requestDTO.getPatientId());
             appointment.setPatientId(requestDTO.getPatientId());
         }
 
@@ -144,28 +202,6 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment appointment = appointmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(String.format(AppointmentConstant.APPOINTMENT_NOT_FOUND, id)));
         appointmentRepository.delete(appointment);
-    }
-
-    private void validatePatientExists(Long patientId) {
-        try {
-            ResponseEntity<Object> response = restTemplate.getForEntity(PATIENT_SERVICE_URL, Object.class, patientId);
-            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-                throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
-            }
-        } catch (HttpClientErrorException.NotFound ex) {
-            throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
-        } catch (HttpStatusCodeException ex) {
-            if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
-                throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
-            }
-            log.error("Patient-service gặp sự cố HTTP {}: {}", ex.getStatusCode(), ex.getMessage());
-            throw new ServiceUnavailableException(AppointmentConstant.PATIENT_SERVICE_UNAVAILABLE);
-        } catch (ResourceNotFoundException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            log.error("Không thể kết nối đến patient-service: {}", ex.getMessage());
-            throw new ServiceUnavailableException(AppointmentConstant.PATIENT_SERVICE_UNAVAILABLE);
-        }
     }
 
     private void validateDoctorExists(Long doctorId) {

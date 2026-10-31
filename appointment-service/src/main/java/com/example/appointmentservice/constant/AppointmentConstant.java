@@ -11,4 +11,5 @@ public class AppointmentConstant {
     public static final String PATIENT_SERVICE_UNAVAILABLE = "Hệ thống quản lý bệnh nhân hiện không khả dụng. Vui lòng đặt lịch sau!";
     public static final String DOCTOR_SERVICE_FALLBACK_MESSAGE = "Hiện tại không thể kiểm tra thông tin bác sĩ, vui lòng thử lại sau vài giây";
     public static final String DOCTOR_SERVICE_ERROR = "Doctor Service Error";
+    public static final String PATIENT_SERVICE_ERROR = "Patient Service Error";
 }

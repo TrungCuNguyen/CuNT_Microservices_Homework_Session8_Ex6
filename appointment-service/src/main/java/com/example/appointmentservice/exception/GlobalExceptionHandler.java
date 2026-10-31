@@ -16,10 +16,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ServiceUnavailableException.class)
     public ResponseEntity<ApiResponseError> handleServiceUnavailableException(ServiceUnavailableException ex) {
+        String errorName = (ex.getMessage() != null && ex.getMessage().contains("bệnh nhân"))
+                ? AppointmentConstant.PATIENT_SERVICE_ERROR
+                : AppointmentConstant.DOCTOR_SERVICE_ERROR;
+
         ApiResponseError error = ApiResponseError.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.SERVICE_UNAVAILABLE.value())
-                .error(AppointmentConstant.DOCTOR_SERVICE_ERROR)
+                .error(errorName)
                 .message(ex.getMessage())
                 .build();
         return new ResponseEntity<>(error, HttpStatus.SERVICE_UNAVAILABLE);
