@@ -4,6 +4,7 @@ import com.example.appointmentservice.constant.AppointmentConstant;
 import com.example.appointmentservice.dto.request.AppointmentRequestDTO;
 import com.example.appointmentservice.dto.response.AppointmentResponseDTO;
 import com.example.appointmentservice.entity.Appointment;
+import com.example.appointmentservice.exception.ApiResponseError;
 import com.example.appointmentservice.exception.BadRequestException;
 import com.example.appointmentservice.exception.ResourceNotFoundException;
 import com.example.appointmentservice.exception.ServiceUnavailableException;
@@ -20,6 +21,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -38,17 +40,23 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     @Transactional
-    @CircuitBreaker(name = "doctorServiceCB", fallbackMethod = "fallbackDoctorService")
     public AppointmentResponseDTO createAppointment(AppointmentRequestDTO requestDTO) {
-        validatePatientExists(requestDTO.getPatientId());
-        validateDoctorExists(requestDTO.getDoctorId());
+        if (requestDTO.getPatientId() != null) {
+            validatePatientExists(requestDTO.getPatientId());
+        }
+        if (requestDTO.getDoctorId() != null) {
+            validateDoctorExists(requestDTO.getDoctorId());
+        }
 
         String status = resolveAndValidateStatus(requestDTO.getStatus());
+        LocalDateTime appointmentDate = requestDTO.getAppointmentDate() != null
+                ? requestDTO.getAppointmentDate()
+                : LocalDateTime.now();
 
         Appointment appointment = Appointment.builder()
-                .patientId(requestDTO.getPatientId())
-                .doctorId(requestDTO.getDoctorId())
-                .appointmentDate(requestDTO.getAppointmentDate())
+                .patientId(requestDTO.getPatientId() != null ? requestDTO.getPatientId() : 1L)
+                .doctorId(requestDTO.getDoctorId() != null ? requestDTO.getDoctorId() : 1L)
+                .appointmentDate(appointmentDate)
                 .reason(requestDTO.getReason())
                 .status(status)
                 .build();
@@ -59,21 +67,27 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     @Transactional
-    @CircuitBreaker(name = "doctorServiceCB", fallbackMethod = "fallbackDoctorService")
     public AppointmentResponseDTO addAppointment(AppointmentRequestDTO requestDTO) {
         return createAppointment(requestDTO);
     }
 
-    public AppointmentResponseDTO fallbackDoctorService(AppointmentRequestDTO requestDTO, Throwable ex) {
-        log.error("CircuitBreaker [doctorServiceCB] fallback triggered: {}", ex.getMessage());
-        if (ex instanceof ResourceNotFoundException) {
-            throw (ResourceNotFoundException) ex;
-        }
-        if (ex instanceof BadRequestException) {
-            throw (BadRequestException) ex;
-        }
-        throw new ServiceUnavailableException(AppointmentConstant.DOCTOR_SERVICE_UNAVAILABLE);
+    @Override
+    @CircuitBreaker(name = "doctorServiceCB", fallbackMethod = "getDoctorFallback")
+    public Object getDoctor(Long doctorId) {
+        return restTemplate.getForEntity(DOCTOR_SERVICE_URL, Object.class, doctorId).getBody();
     }
+
+    @Override
+    public ApiResponseError getDoctorFallback(Exception e) {
+        log.error("CircuitBreaker [doctorServiceCB] getDoctorFallback invoked: {}", e.getMessage());
+        return ApiResponseError.builder()
+                .timestamp(LocalDateTime.now())
+                .status(503)
+                .error(AppointmentConstant.DOCTOR_SERVICE_ERROR)
+                .message(AppointmentConstant.DOCTOR_SERVICE_FALLBACK_MESSAGE)
+                .build();
+    }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -149,7 +163,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         } catch (ResourceNotFoundException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.error("Không thể kết nối đến patient-service (service sập hoặc lỗi): {}", ex.getMessage());
+            log.error("Không thể kết nối đến patient-service: {}", ex.getMessage());
             throw new ServiceUnavailableException(AppointmentConstant.PATIENT_SERVICE_UNAVAILABLE);
         }
     }
@@ -167,12 +181,12 @@ public class AppointmentServiceImpl implements AppointmentService {
                 throw new ResourceNotFoundException(String.format(AppointmentConstant.DOCTOR_NOT_FOUND, doctorId));
             }
             log.error("Doctor-service gặp sự cố HTTP {}: {}", ex.getStatusCode(), ex.getMessage());
-            throw new ServiceUnavailableException(AppointmentConstant.DOCTOR_SERVICE_UNAVAILABLE);
+            throw new ServiceUnavailableException(AppointmentConstant.DOCTOR_SERVICE_FALLBACK_MESSAGE);
         } catch (ResourceNotFoundException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.error("Không thể kết nối đến doctor-service (service sập hoặc lỗi): {}", ex.getMessage());
-            throw new ServiceUnavailableException(AppointmentConstant.DOCTOR_SERVICE_UNAVAILABLE);
+            log.error("Không thể kết nối đến doctor-service: {}", ex.getMessage());
+            throw new ServiceUnavailableException(AppointmentConstant.DOCTOR_SERVICE_FALLBACK_MESSAGE);
         }
     }
 

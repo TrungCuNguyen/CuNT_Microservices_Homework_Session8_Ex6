@@ -1,5 +1,6 @@
 package com.example.appointmentservice.exception;
 
+import com.example.appointmentservice.constant.AppointmentConstant;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -18,7 +19,7 @@ public class GlobalExceptionHandler {
         ApiResponseError error = ApiResponseError.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.SERVICE_UNAVAILABLE.value())
-                .error(HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase())
+                .error(AppointmentConstant.DOCTOR_SERVICE_ERROR)
                 .message(ex.getMessage())
                 .build();
         return new ResponseEntity<>(error, HttpStatus.SERVICE_UNAVAILABLE);

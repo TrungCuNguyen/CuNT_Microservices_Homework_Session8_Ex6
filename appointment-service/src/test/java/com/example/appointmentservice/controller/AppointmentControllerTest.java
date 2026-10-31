@@ -106,7 +106,7 @@ class AppointmentControllerTest {
     }
 
     @Test
-    void testCreateAppointment_DoctorServiceUnavailable_Returns503() throws Exception {
+    void testCreateAppointment_DoctorServiceUnavailable_FallbackReturns503() throws Exception {
         LocalDateTime appointmentDate = LocalDateTime.of(2026, 11, 1, 10, 0, 0);
 
         AppointmentRequestDTO requestDTO = AppointmentRequestDTO.builder()
@@ -118,17 +118,14 @@ class AppointmentControllerTest {
                 .build();
 
         when(appointmentService.addAppointment(any(AppointmentRequestDTO.class)))
-                .thenThrow(new ServiceUnavailableException("Hệ thống quản lý bác sĩ hiện không khả dụng. Vui lòng đặt lịch sau!"));
-        when(appointmentService.createAppointment(any(AppointmentRequestDTO.class)))
-                .thenThrow(new ServiceUnavailableException("Hệ thống quản lý bác sĩ hiện không khả dụng. Vui lòng đặt lịch sau!"));
+                .thenThrow(new RuntimeException("Doctor-service is down"));
 
         mockMvc.perform(post("/api/v1/appointments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDTO)))
-                .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.status").value(503))
-                .andExpect(jsonPath("$.error").value("Service Unavailable"))
-                .andExpect(jsonPath("$.message").value("Hệ thống quản lý bác sĩ hiện không khả dụng. Vui lòng đặt lịch sau!"))
+                .andExpect(jsonPath("$.error").value("Doctor Service Error"))
+                .andExpect(jsonPath("$.message").value("Hiện tại không thể kiểm tra thông tin bác sĩ, vui lòng thử lại sau vài giây"))
                 .andExpect(jsonPath("$.timestamp").exists());
     }
 

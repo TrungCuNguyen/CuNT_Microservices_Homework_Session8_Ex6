@@ -4,6 +4,7 @@ import com.example.appointmentservice.constant.AppointmentConstant;
 import com.example.appointmentservice.dto.request.AppointmentRequestDTO;
 import com.example.appointmentservice.dto.response.AppointmentResponseDTO;
 import com.example.appointmentservice.entity.Appointment;
+import com.example.appointmentservice.exception.ApiResponseError;
 import com.example.appointmentservice.exception.BadRequestException;
 import com.example.appointmentservice.exception.ResourceNotFoundException;
 import com.example.appointmentservice.exception.ServiceUnavailableException;
@@ -132,8 +133,17 @@ class AppointmentServiceImplTest {
                 () -> appointmentService.createAppointment(requestDTO)
         );
 
-        assertEquals("Hệ thống quản lý bác sĩ hiện không khả dụng. Vui lòng đặt lịch sau!", exception.getMessage());
+        assertEquals("Hiện tại không thể kiểm tra thông tin bác sĩ, vui lòng thử lại sau vài giây", exception.getMessage());
         verify(appointmentRepository, never()).save(any(Appointment.class));
+    }
+
+    @Test
+    void testGetDoctorFallback() {
+        ApiResponseError error = appointmentService.getDoctorFallback(new RuntimeException("Server error"));
+        assertNotNull(error);
+        assertEquals(503, error.getStatus());
+        assertEquals("Doctor Service Error", error.getError());
+        assertEquals("Hiện tại không thể kiểm tra thông tin bác sĩ, vui lòng thử lại sau vài giây", error.getMessage());
     }
 
     @Test

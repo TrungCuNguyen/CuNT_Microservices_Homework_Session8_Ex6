@@ -1,14 +1,17 @@
 package com.example.appointmentservice.controller;
 
+import com.example.appointmentservice.constant.AppointmentConstant;
 import com.example.appointmentservice.dto.request.AppointmentRequestDTO;
 import com.example.appointmentservice.dto.response.AppointmentResponseDTO;
+import com.example.appointmentservice.exception.ApiResponseError;
 import com.example.appointmentservice.service.AppointmentService;
-import jakarta.validation.Valid;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -19,9 +22,19 @@ public class AppointmentController {
     private final AppointmentService appointmentService;
 
     @PostMapping
-    public ResponseEntity<AppointmentResponseDTO> createAppointment(@Valid @RequestBody AppointmentRequestDTO requestDTO) {
+    @CircuitBreaker(name = "doctorServiceCB", fallbackMethod = "getDoctorFallback")
+    public Object createAppointment(@RequestBody AppointmentRequestDTO requestDTO) {
         AppointmentResponseDTO response = appointmentService.addAppointment(requestDTO);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    public ApiResponseError getDoctorFallback(Exception e) {
+        return ApiResponseError.builder()
+                .timestamp(LocalDateTime.now())
+                .status(503)
+                .error(AppointmentConstant.DOCTOR_SERVICE_ERROR)
+                .message(AppointmentConstant.DOCTOR_SERVICE_FALLBACK_MESSAGE)
+                .build();
     }
 
     @GetMapping
@@ -39,7 +52,7 @@ public class AppointmentController {
     @PutMapping("/{id}")
     public ResponseEntity<AppointmentResponseDTO> updateAppointment(
             @PathVariable Long id,
-            @Valid @RequestBody AppointmentRequestDTO requestDTO) {
+            @RequestBody AppointmentRequestDTO requestDTO) {
         AppointmentResponseDTO response = appointmentService.updateAppointment(id, requestDTO);
         return ResponseEntity.ok(response);
     }
@@ -50,4 +63,3 @@ public class AppointmentController {
         return ResponseEntity.noContent().build();
     }
 }
-
