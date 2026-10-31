@@ -6,6 +6,7 @@ import com.example.appointmentservice.dto.response.AppointmentResponseDTO;
 import com.example.appointmentservice.entity.Appointment;
 import com.example.appointmentservice.exception.BadRequestException;
 import com.example.appointmentservice.exception.ResourceNotFoundException;
+import com.example.appointmentservice.exception.ServiceUnavailableException;
 import com.example.appointmentservice.repository.AppointmentRepository;
 import com.example.appointmentservice.service.AppointmentService;
 import lombok.RequiredArgsConstructor;
@@ -14,8 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
@@ -117,18 +118,19 @@ public class AppointmentServiceImpl implements AppointmentService {
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
             }
+        } catch (HttpClientErrorException.NotFound ex) {
+            throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
         } catch (HttpStatusCodeException ex) {
             if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
                 throw new ResourceNotFoundException(String.format(AppointmentConstant.PATIENT_NOT_FOUND, patientId));
             }
-            log.error("Lỗi từ patient-service: {}", ex.getMessage());
-            throw new BadRequestException("Lỗi khi kết nối tới Patient-Service: " + ex.getStatusCode());
-        } catch (ResourceAccessException ex) {
-            log.error("Không thể kết nối đến patient-service: {}", ex.getMessage());
-            throw new BadRequestException("Không thể kết nối đến Patient-Service: Dịch vụ có thể chưa khởi động hoặc chưa đăng ký trên Eureka");
+            log.error("Patient-service gặp sự cố HTTP {}: {}", ex.getStatusCode(), ex.getMessage());
+            throw new ServiceUnavailableException(AppointmentConstant.PATIENT_SERVICE_UNAVAILABLE);
+        } catch (ResourceNotFoundException ex) {
+            throw ex;
         } catch (Exception ex) {
-            log.error("Lỗi xác thực bệnh nhân: {}", ex.getMessage());
-            throw new BadRequestException("Lỗi xác thực bệnh nhân: " + ex.getMessage());
+            log.error("Không thể kết nối đến patient-service (service sập hoặc lỗi): {}", ex.getMessage());
+            throw new ServiceUnavailableException(AppointmentConstant.PATIENT_SERVICE_UNAVAILABLE);
         }
     }
 
@@ -138,18 +140,19 @@ public class AppointmentServiceImpl implements AppointmentService {
             if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
                 throw new ResourceNotFoundException(String.format(AppointmentConstant.DOCTOR_NOT_FOUND, doctorId));
             }
+        } catch (HttpClientErrorException.NotFound ex) {
+            throw new ResourceNotFoundException(String.format(AppointmentConstant.DOCTOR_NOT_FOUND, doctorId));
         } catch (HttpStatusCodeException ex) {
             if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
                 throw new ResourceNotFoundException(String.format(AppointmentConstant.DOCTOR_NOT_FOUND, doctorId));
             }
-            log.error("Lỗi từ doctor-service: {}", ex.getMessage());
-            throw new BadRequestException("Lỗi khi kết nối tới Doctor-Service: " + ex.getStatusCode());
-        } catch (ResourceAccessException ex) {
-            log.error("Không thể kết nối đến doctor-service: {}", ex.getMessage());
-            throw new BadRequestException("Không thể kết nối đến Doctor-Service: Dịch vụ có thể chưa khởi động hoặc chưa đăng ký trên Eureka");
+            log.error("Doctor-service gặp sự cố HTTP {}: {}", ex.getStatusCode(), ex.getMessage());
+            throw new ServiceUnavailableException(AppointmentConstant.DOCTOR_SERVICE_UNAVAILABLE);
+        } catch (ResourceNotFoundException ex) {
+            throw ex;
         } catch (Exception ex) {
-            log.error("Lỗi xác thực bác sĩ: {}", ex.getMessage());
-            throw new BadRequestException("Lỗi xác thực bác sĩ: " + ex.getMessage());
+            log.error("Không thể kết nối đến doctor-service (service sập hoặc lỗi): {}", ex.getMessage());
+            throw new ServiceUnavailableException(AppointmentConstant.DOCTOR_SERVICE_UNAVAILABLE);
         }
     }
 
@@ -175,4 +178,3 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .build();
     }
 }
-

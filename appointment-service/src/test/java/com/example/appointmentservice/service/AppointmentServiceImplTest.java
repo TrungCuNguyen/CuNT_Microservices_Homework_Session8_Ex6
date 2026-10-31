@@ -6,6 +6,7 @@ import com.example.appointmentservice.dto.response.AppointmentResponseDTO;
 import com.example.appointmentservice.entity.Appointment;
 import com.example.appointmentservice.exception.BadRequestException;
 import com.example.appointmentservice.exception.ResourceNotFoundException;
+import com.example.appointmentservice.exception.ServiceUnavailableException;
 import com.example.appointmentservice.repository.AppointmentRepository;
 import com.example.appointmentservice.service.impl.AppointmentServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -118,6 +120,37 @@ class AppointmentServiceImplTest {
     }
 
     @Test
+    void testCreateAppointment_DoctorServiceDown() {
+        when(restTemplate.getForEntity(eq("http://patient-service/api/v1/patients/{id}"), eq(Object.class), eq(1L)))
+                .thenReturn(new ResponseEntity<>(new Object(), HttpStatus.OK));
+
+        when(restTemplate.getForEntity(eq("http://doctor-service/api/v1/doctors/{id}"), eq(Object.class), eq(2L)))
+                .thenThrow(new ResourceAccessException("Connect to http://doctor-service/api/v1/doctors/2 failed: Connection refused"));
+
+        ServiceUnavailableException exception = assertThrows(
+                ServiceUnavailableException.class,
+                () -> appointmentService.createAppointment(requestDTO)
+        );
+
+        assertEquals("Hệ thống quản lý bác sĩ hiện không khả dụng. Vui lòng đặt lịch sau!", exception.getMessage());
+        verify(appointmentRepository, never()).save(any(Appointment.class));
+    }
+
+    @Test
+    void testCreateAppointment_PatientServiceDown() {
+        when(restTemplate.getForEntity(eq("http://patient-service/api/v1/patients/{id}"), eq(Object.class), eq(1L)))
+                .thenThrow(new ResourceAccessException("Connect to http://patient-service/api/v1/patients/1 failed: Connection refused"));
+
+        ServiceUnavailableException exception = assertThrows(
+                ServiceUnavailableException.class,
+                () -> appointmentService.createAppointment(requestDTO)
+        );
+
+        assertEquals("Hệ thống quản lý bệnh nhân hiện không khả dụng. Vui lòng đặt lịch sau!", exception.getMessage());
+        verify(appointmentRepository, never()).save(any(Appointment.class));
+    }
+
+    @Test
     void testCreateAppointment_InvalidStatus() {
         when(restTemplate.getForEntity(eq("http://patient-service/api/v1/patients/{id}"), eq(Object.class), eq(1L)))
                 .thenReturn(new ResponseEntity<>(new Object(), HttpStatus.OK));
@@ -176,4 +209,3 @@ class AppointmentServiceImplTest {
         verify(appointmentRepository, times(1)).delete(appointment);
     }
 }
-

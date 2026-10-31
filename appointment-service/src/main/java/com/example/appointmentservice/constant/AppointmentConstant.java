@@ -7,5 +7,6 @@ public class AppointmentConstant {
     public static final String CREATE_APPOINTMENT_SUCCESS = "Tạo lịch khám thành công!";
     public static final String UPDATE_APPOINTMENT_SUCCESS = "Cập nhật lịch khám thành công!";
     public static final String DELETE_APPOINTMENT_SUCCESS = "Xóa lịch khám thành công!";
+    public static final String DOCTOR_SERVICE_UNAVAILABLE = "Hệ thống quản lý bác sĩ hiện không khả dụng. Vui lòng đặt lịch sau!";
+    public static final String PATIENT_SERVICE_UNAVAILABLE = "Hệ thống quản lý bệnh nhân hiện không khả dụng. Vui lòng đặt lịch sau!";
 }
-
