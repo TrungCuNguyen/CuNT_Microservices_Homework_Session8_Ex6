@@ -84,6 +84,36 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
+    @Transactional
+    public AppointmentResponseDTO savePendingAppointment(AppointmentRequestDTO requestDTO) {
+        LocalDateTime appointmentDate = (requestDTO != null && requestDTO.getAppointmentDate() != null)
+                ? requestDTO.getAppointmentDate()
+                : LocalDateTime.now();
+
+        Long patientId = (requestDTO != null && requestDTO.getPatientId() != null)
+                ? requestDTO.getPatientId()
+                : 1L;
+
+        Long doctorId = (requestDTO != null && requestDTO.getDoctorId() != null)
+                ? requestDTO.getDoctorId()
+                : 1L;
+
+        String reason = requestDTO != null ? requestDTO.getReason() : null;
+
+        Appointment appointment = Appointment.builder()
+                .patientId(patientId)
+                .doctorId(doctorId)
+                .appointmentDate(appointmentDate)
+                .reason(reason)
+                .status("PENDING")
+                .build();
+
+        Appointment savedAppointment = appointmentRepository.save(appointment);
+        log.info("Lưu appointment ở trạng thái PENDING thành công với ID: {}", savedAppointment.getId());
+        return mapToResponse(savedAppointment);
+    }
+
+    @Override
     @CircuitBreaker(name = "doctorServiceCB", fallbackMethod = "getDoctorFallback")
     public Object getDoctor(Long doctorId) {
         return restTemplate.getForEntity(DOCTOR_SERVICE_URL, Object.class, doctorId).getBody();

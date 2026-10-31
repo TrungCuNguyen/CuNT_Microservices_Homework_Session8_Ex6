@@ -147,6 +147,24 @@ class AppointmentServiceImplTest {
     }
 
     @Test
+    void testSavePendingAppointment_Success() {
+        when(appointmentRepository.save(any(Appointment.class))).thenAnswer(invocation -> {
+            Appointment saved = invocation.getArgument(0);
+            saved.setId(100L);
+            return saved;
+        });
+
+        AppointmentResponseDTO result = appointmentService.savePendingAppointment(requestDTO);
+
+        assertNotNull(result);
+        assertEquals(100L, result.getId());
+        assertEquals("PENDING", result.getStatus());
+        assertEquals(1L, result.getPatientId());
+        assertEquals(2L, result.getDoctorId());
+        verify(appointmentRepository, times(1)).save(any(Appointment.class));
+    }
+
+    @Test
     void testCreateAppointment_PatientServiceDown() {
         when(restTemplate.getForEntity(eq("http://patient-service/api/v1/patients/{id}"), eq(Object.class), eq(1L)))
                 .thenThrow(new ResourceAccessException("Connect to http://patient-service/api/v1/patients/1 failed: Connection refused"));

@@ -27,4 +27,5 @@ public interface AppointmentService {
     Object getPatient(Long patientId);
 
     void validatePatientExists(Long patientId);
+    AppointmentResponseDTO savePendingAppointment(AppointmentRequestDTO requestDTO);
 }

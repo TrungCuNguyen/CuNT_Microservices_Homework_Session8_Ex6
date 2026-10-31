@@ -127,6 +127,9 @@ class AppointmentControllerTest {
                 .andExpect(jsonPath("$.error").value("Doctor Service Error"))
                 .andExpect(jsonPath("$.message").value("Hiện tại không thể kiểm tra thông tin bác sĩ, vui lòng thử lại sau vài giây"))
                 .andExpect(jsonPath("$.timestamp").exists());
+
+        org.mockito.Mockito.verify(appointmentService, org.mockito.Mockito.atLeastOnce())
+                .savePendingAppointment(any(AppointmentRequestDTO.class));
     }
 
     @Test
