@@ -9,6 +9,8 @@ public interface AppointmentService {
 
     AppointmentResponseDTO createAppointment(AppointmentRequestDTO requestDTO);
 
+    AppointmentResponseDTO addAppointment(AppointmentRequestDTO requestDTO);
+
     AppointmentResponseDTO getAppointmentById(Long id);
 
     List<AppointmentResponseDTO> getAllAppointments();
@@ -17,4 +19,3 @@ public interface AppointmentService {
 
     void deleteAppointment(Long id);
 }
-

@@ -9,6 +9,7 @@ import com.example.appointmentservice.exception.ResourceNotFoundException;
 import com.example.appointmentservice.exception.ServiceUnavailableException;
 import com.example.appointmentservice.repository.AppointmentRepository;
 import com.example.appointmentservice.service.AppointmentService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,7 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     @Transactional
+    @CircuitBreaker(name = "doctorServiceCB", fallbackMethod = "fallbackDoctorService")
     public AppointmentResponseDTO createAppointment(AppointmentRequestDTO requestDTO) {
         validatePatientExists(requestDTO.getPatientId());
         validateDoctorExists(requestDTO.getDoctorId());
@@ -53,6 +55,24 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
         return mapToResponse(savedAppointment);
+    }
+
+    @Override
+    @Transactional
+    @CircuitBreaker(name = "doctorServiceCB", fallbackMethod = "fallbackDoctorService")
+    public AppointmentResponseDTO addAppointment(AppointmentRequestDTO requestDTO) {
+        return createAppointment(requestDTO);
+    }
+
+    public AppointmentResponseDTO fallbackDoctorService(AppointmentRequestDTO requestDTO, Throwable ex) {
+        log.error("CircuitBreaker [doctorServiceCB] fallback triggered: {}", ex.getMessage());
+        if (ex instanceof ResourceNotFoundException) {
+            throw (ResourceNotFoundException) ex;
+        }
+        if (ex instanceof BadRequestException) {
+            throw (BadRequestException) ex;
+        }
+        throw new ServiceUnavailableException(AppointmentConstant.DOCTOR_SERVICE_UNAVAILABLE);
     }
 
     @Override

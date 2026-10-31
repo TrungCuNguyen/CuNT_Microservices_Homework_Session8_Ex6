@@ -56,6 +56,7 @@ class AppointmentControllerTest {
                 .status("PENDING")
                 .build();
 
+        when(appointmentService.addAppointment(any(AppointmentRequestDTO.class))).thenReturn(responseDTO);
         when(appointmentService.createAppointment(any(AppointmentRequestDTO.class))).thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/appointments")
@@ -90,6 +91,7 @@ class AppointmentControllerTest {
                 .status("PENDING")
                 .build();
 
+        when(appointmentService.addAppointment(any(AppointmentRequestDTO.class))).thenReturn(responseDTO);
         when(appointmentService.createAppointment(any(AppointmentRequestDTO.class))).thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/appointment")
@@ -115,6 +117,8 @@ class AppointmentControllerTest {
                 .status("PENDING")
                 .build();
 
+        when(appointmentService.addAppointment(any(AppointmentRequestDTO.class)))
+                .thenThrow(new ServiceUnavailableException("Hệ thống quản lý bác sĩ hiện không khả dụng. Vui lòng đặt lịch sau!"));
         when(appointmentService.createAppointment(any(AppointmentRequestDTO.class)))
                 .thenThrow(new ServiceUnavailableException("Hệ thống quản lý bác sĩ hiện không khả dụng. Vui lòng đặt lịch sau!"));
 
